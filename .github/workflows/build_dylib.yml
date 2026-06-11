@@ -1,0 +1,71 @@
+name: Build KMEngine.dylib
+
+# GitHub Actions 云端编译 — 免费, 无需 Mac
+# 用法: 将整个 Tiaose-KM 目录 push 到 GitHub, 自动触发编译
+#       编译完成后从 Actions Artifacts 下载 KMEngine.dylib
+
+on:
+  push:
+    paths:
+      - '**.h'
+      - '**.m'
+      - '.github/workflows/build_dylib.yml'
+  workflow_dispatch:  # 允许手动触发
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build KMEngine.dylib
+        run: |
+          SDK=$(xcrun --sdk iphoneos --show-sdk-path)
+          echo "Using SDK: $SDK"
+
+          xcrun --sdk iphoneos clang \
+            -arch arm64 \
+            -dynamiclib \
+            -o KMEngine.dylib \
+            -miphoneos-version-min=12.0 \
+            -framework UIKit \
+            -framework Foundation \
+            -fobjc-arc \
+            -O2 \
+            KMPigment.m \
+            KMEngine.m \
+            KMPigmentDatabase.m \
+            KMHooks.m
+
+          echo "=== DYLIB INFO ==="
+          ls -lh KMEngine.dylib
+          echo ""
+          echo "Load commands:"
+          xcrun otool -L KMEngine.dylib || otool -L KMEngine.dylib
+
+      - name: Upload KMEngine.dylib
+        uses: actions/upload-artifact@v4
+        with:
+          name: KMEngine.dylib
+          path: KMEngine.dylib
+          retention-days: 7
+
+      - name: Upload complete package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tiaose-KM-完整包
+          path: |
+            KMEngine.dylib
+            KMPigment.h
+            KMPigment.m
+            KMEngine.h
+            KMEngine.m
+            KMPigmentDatabase.h
+            KMPigmentDatabase.m
+            KMHooks.m
+            build_dylib.sh
+            make_ipa.py
+            patch_macho.py
+            README.md
+          retention-days: 7

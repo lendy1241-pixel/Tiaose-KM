@@ -1,0 +1,14 @@
+# Large files
+build/
+__pycache__/
+*.ipa
+*.zip
+*.dylib
+*.backup
+
+# Python
+*.pyc
+__pycache__/
+
+# macOS
+.DS_Store
