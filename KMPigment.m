@@ -11,9 +11,9 @@
     if (self) {
         _name = [name copy];
         if (ksValues) {
-            memcpy(_ks, ksValues, sizeof(CGFloat) * KM_SPECTRAL_BANDS);
+            memcpy(_ks.values, ksValues, sizeof(CGFloat) * KM_SPECTRAL_BANDS);
         } else {
-            memset(_ks, 0, sizeof(CGFloat) * KM_SPECTRAL_BANDS);
+            memset(_ks.values, 0, sizeof(CGFloat) * KM_SPECTRAL_BANDS);
         }
     }
     return self;
@@ -32,7 +32,7 @@
 }
 
 - (CGFloat)ksAtWavelength:(NSInteger)wavelength {
-    return self.ks[KMIndexAtWavelength(wavelength)];
+    return self.ks.values[KMIndexAtWavelength(wavelength)];
 }
 
 - (NSString *)description {

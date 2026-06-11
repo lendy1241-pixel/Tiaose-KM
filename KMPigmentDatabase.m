@@ -12,8 +12,8 @@
 static void buildReflectance(NSArray<NSNumber *> *keyWL, NSArray<NSNumber *> *keyRef,
                               CGFloat *outRefl) {
     NSInteger nKeys = keyWL.count;
-    const CGFloat *kwls = malloc(sizeof(CGFloat) * nKeys);
-    const CGFloat *krefs = malloc(sizeof(CGFloat) * nKeys);
+    CGFloat *kwls = malloc(sizeof(CGFloat) * nKeys);
+    CGFloat *krefs = malloc(sizeof(CGFloat) * nKeys);
     for (NSInteger i = 0; i < nKeys; i++) {
         kwls[i] = [keyWL[i] floatValue];
         krefs[i] = [keyRef[i] floatValue];

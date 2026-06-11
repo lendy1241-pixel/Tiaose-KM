@@ -178,6 +178,12 @@ static void km_checkTapped(id self, SEL _cmd, id sender) {
 // ============================================================
 // +load: 在 dylib 加载时执行方法交换
 // ============================================================
+
+// 前向声明，让 constructor 函数可以使用
+@interface KMHooks : NSObject
++ (void)install;
+@end
+
 __attribute__((constructor))
 static void KMHooksInit(void) {
     // 延迟到 UIKit 初始化之后
@@ -186,10 +192,6 @@ static void KMHooksInit(void) {
         [KMHooks install];
     });
 }
-
-@interface KMHooks : NSObject
-+ (void)install;
-@end
 
 @implementation KMHooks
 

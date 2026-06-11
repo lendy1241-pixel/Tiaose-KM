@@ -23,16 +23,22 @@ static inline NSInteger KMIndexAtWavelength(NSInteger wavelength) {
     return idx;
 }
 
+/// 光谱数据曲线 (用于 @property 中承载 C 数组)
+/// 用法: curve.values[i] 访问第 i 个波段
+typedef struct {
+    CGFloat values[KM_SPECTRAL_BANDS];
+} KMSpectralCurve;
+
 @interface KMPigment : NSObject
 
 /// 色浆名称 (如 "钛白", "铁红")
 @property (nonatomic, copy) NSString *name;
 
 /// K/S 值数组 [KM_SPECTRAL_BANDS]
-/// ks[0] = 380nm, ks[35] = 730nm
+/// ks.values[0] = 380nm, ks.values[35] = 730nm
 /// K/S 越高 → 该波段吸收越强 → 颜色越暗
 /// K/S 越低 → 该波段散射越强 → 颜色越亮
-@property (nonatomic, assign) CGFloat ks[KM_SPECTRAL_BANDS];
+@property (nonatomic, assign) KMSpectralCurve ks;
 
 /// 用名称 + K/S 数组初始化
 - (instancetype)initWithName:(NSString *)name ksValues:(const CGFloat *)ksValues;

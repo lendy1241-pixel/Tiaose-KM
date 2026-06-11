@@ -135,7 +135,7 @@ static inline CGFloat kNormalize(void) {
 
     for (NSUInteger i = 0; i < count; i++) {
         CGFloat c = concentrations[i];
-        const CGFloat *ks = pigments[i].ks;
+        const CGFloat *ks = pigments[i].ks.values;
         for (int lam = 0; lam < KM_SPECTRAL_BANDS; lam++) {
             ksMix[lam] += c * ks[lam];
         }
@@ -181,7 +181,7 @@ static inline CGFloat kNormalize(void) {
 
     // ========== 组装结果 ==========
     KMMixResult *result = [[KMMixResult alloc] init];
-    memcpy(result.reflectance, reflectance, sizeof(reflectance));
+    memcpy(result.reflectance.values, reflectance, sizeof(reflectance));
     result.X = X;
     result.Y = Y;
     result.Z = Z;
@@ -320,10 +320,10 @@ static const CGFloat REF_Z = 108.883f;
 }
 
 + (void)sRGBToLabR:(uint8_t)r g:(uint8_t)g b:(uint8_t)b
-                 L:(CGFloat *)L a:(CGFloat *)a b:(CGFloat *)b {
+                 L:(CGFloat *)L a:(CGFloat *)a b:(CGFloat *)outB {
     CGFloat X, Y, Z;
     [self sRGBToXYZ_R:r g:g b:b X:&X Y:&Y Z:&Z];
-    [self xyzToLab_X:X Y:Y Z:Z L:L a:a b:b];
+    [self xyzToLab_X:X Y:Y Z:Z L:L a:a b:outB];
 }
 
 #pragma mark - CIEDE2000 色差 (ISO/CIE 11664-6:2014)
@@ -367,7 +367,7 @@ static const CGFloat REF_Z = 108.883f;
         dhp = 0;
     } else {
         CGFloat diff = h2p - h1p;
-        if (fabsf(diff) <= (CGFloat)M_PI) {
+        if (fabs(diff) <= (CGFloat)M_PI) {
             dhp = diff;
         } else if (diff > (CGFloat)M_PI) {
             dhp = diff - 2.0f * (CGFloat)M_PI;
@@ -385,7 +385,7 @@ static const CGFloat REF_Z = 108.883f;
     if (C1p * C2p == 0) {
         hp_avg = h1p + h2p;
     } else {
-        if (fabsf(h1p - h2p) <= (CGFloat)M_PI) {
+        if (fabs(h1p - h2p) <= (CGFloat)M_PI) {
             hp_avg = (h1p + h2p) / 2.0f;
         } else if (h1p + h2p < 2.0f * (CGFloat)M_PI) {
             hp_avg = (h1p + h2p + 2.0f * (CGFloat)M_PI) / 2.0f;

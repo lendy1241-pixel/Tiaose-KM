@@ -11,7 +11,7 @@
 @interface KMMixResult : NSObject
 
 /// 反射率曲线 (36 点, 380-730nm, 步长 10nm)
-@property (nonatomic, assign) CGFloat reflectance[KM_SPECTRAL_BANDS];
+@property (nonatomic, assign) KMSpectralCurve reflectance;
 
 /// CIE XYZ 三刺激值 (D65, Y=100 白点)
 @property (nonatomic, assign) CGFloat X;
@@ -56,7 +56,7 @@
 
 /// sRGB (0-255) → CIELAB
 + (void)sRGBToLabR:(uint8_t)r g:(uint8_t)g b:(uint8_t)b
-                 L:(CGFloat *)L a:(CGFloat *)a b:(CGFloat *)b;
+                 L:(CGFloat *)L a:(CGFloat *)a b:(CGFloat *)outB;
 
 /// CIELAB → XYZ (D65)
 + (void)labToXYZ_L:(CGFloat)L a:(CGFloat)a b:(CGFloat)b
