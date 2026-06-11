@@ -53,6 +53,14 @@ def patch_binary(app_dir, dylib_name='KMEngine.dylib'):
     if not os.path.exists(exe_path):
         raise ValueError(f"Binary not found: {exe_path}")
 
+    # 检查是否已经 patch 过
+    with open(exe_path, 'rb') as f:
+        existing = f.read()
+    dylib_ref = f'@executable_path/{dylib_name}'.encode('ascii')
+    if dylib_ref in existing:
+        print(f"  [skip] Binary already references {dylib_name}, skipping patch")
+        return exe_path
+
     dylib_path = f'@executable_path/{dylib_name}'
 
     # 调用 patch_macho.py
