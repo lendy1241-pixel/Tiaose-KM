@@ -35,6 +35,7 @@ xcrun --sdk iphoneos clang \
     -framework Foundation \
     -fobjc-arc \
     -O2 \
+    -Wl,-undefined,dynamic_lookup \
     KMPigment.m \
     KMEngine.m \
     KMPigmentDatabase.m \
