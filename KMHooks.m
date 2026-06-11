@@ -10,28 +10,26 @@
 #import "KMPigmentDatabase.h"
 
 // ============================================================
-// 宏: 从主二进制安全查找全局变量 (dlsym)
+// dlsym 安全查找宏
 // ============================================================
-#define KM_LOOKUP(type, name) ((type)dlsym(RTLD_DEFAULT, #name))
+#define KM_OBJC(type, name)  ((__bridge type)dlsym(RTLD_DEFAULT, #name))
+#define KM_PTR(type, name)   ((type)dlsym(RTLD_DEFAULT, #name))
 
 // ============================================================
 // 旧的 IMP 保存
 // ============================================================
 static void (*original_checkTapped)(id, SEL, id) = NULL;
 static id   (*original_mixColor)(id, SEL) = NULL;
-
-// 是否成功安装了 hooks
 static BOOL _hooksInstalled = NO;
 
 
 // ============================================================
-// 新的 mixColor: 用 KM 引擎替代 RGB 加权平均
+// 新的 mixColor
 // ============================================================
 static UIColor *km_mixColor(id self, SEL _cmd) {
-    // 安全查找全局变量（每次调用时查找，确保 App 已初始化）
-    NSMutableArray *gNames   = KM_LOOKUP(NSMutableArray *, _gNames);
-    NSMutableArray *gAmounts = KM_LOOKUP(NSMutableArray *, _gAmounts);
-    NSMutableArray *gFields  = KM_LOOKUP(NSMutableArray *, _gFields);
+    NSMutableArray *gNames   = KM_OBJC(NSMutableArray *, _gNames);
+    NSMutableArray *gAmounts = KM_OBJC(NSMutableArray *, _gAmounts);
+    NSMutableArray *gFields  = KM_OBJC(NSMutableArray *, _gFields);
 
     NSMutableArray<KMPigment *> *pigments = [NSMutableArray array];
     NSMutableArray<NSNumber *> *weights = [NSMutableArray array];
@@ -41,28 +39,24 @@ static UIColor *km_mixColor(id self, SEL _cmd) {
         CGFloat w = 0;
         if (gAmounts && i < gAmounts.count) {
             id amountObj = gAmounts[i];
-            if ([amountObj isKindOfClass:[NSNumber class]]) {
+            if ([amountObj isKindOfClass:[NSNumber class]])
                 w = [(NSNumber *)amountObj floatValue];
-            } else if ([amountObj isKindOfClass:[NSString class]]) {
+            else if ([amountObj isKindOfClass:[NSString class]])
                 w = [(NSString *)amountObj floatValue];
-            }
         }
         if (w <= 0.001 && gFields && i < gFields.count) {
             id field = gFields[i];
-            if ([field respondsToSelector:@selector(text)]) {
+            if ([field respondsToSelector:@selector(text)])
                 w = [[field performSelector:@selector(text)] floatValue];
-            }
         }
         if (w <= 0.001) continue;
 
         NSString *name = nil;
         if (gNames && i < gNames.count) {
             id nameObj = gNames[i];
-            if ([nameObj isKindOfClass:[NSString class]]) {
-                name = nameObj;
-            }
+            if ([nameObj isKindOfClass:[NSString class]]) name = nameObj;
         }
-        if (!name) name = [NSString stringWithFormat:@"色浆%lu", (unsigned long)i];
+        if (!name) name = [NSString stringWithFormat:@"P%lu", (unsigned long)i];
 
         KMPigment *pigment = [KMPigmentDatabase pigmentWithName:name];
         if (pigment) {
@@ -72,10 +66,7 @@ static UIColor *km_mixColor(id self, SEL _cmd) {
     }
 
     if (pigments.count == 0) {
-        // 没有任何已知色浆 → fallback 回原方法
-        if (original_mixColor) {
-            return original_mixColor(self, _cmd);
-        }
+        if (original_mixColor) return original_mixColor(self, _cmd);
         return [UIColor grayColor];
     }
 
@@ -85,78 +76,60 @@ static UIColor *km_mixColor(id self, SEL _cmd) {
 
 
 // ============================================================
-// 新的 checkTapped: 用 KM + CIEDE2000 替代旧的 RGB 对比
+// 新的 checkTapped:
 // ============================================================
 static void km_checkTapped(id self, SEL _cmd, id sender) {
-    // 安全查找
-    UIView *gTargetView  = KM_LOOKUP(UIView *, _gTargetView);
-    UIView *gCurrentView = KM_LOOKUP(UIView *, _gCurrentView);
-    UILabel *gStatusLabel = KM_LOOKUP(UILabel *, _gStatusLabel);
-    NSMutableArray *gHistory = KM_LOOKUP(NSMutableArray *, _gHistory);
-    CGFloat *gBestDifference = KM_LOOKUP(CGFloat *, _gBestDifference);
+    UIView *gTargetView   = KM_OBJC(UIView *, _gTargetView);
+    UIView *gCurrentView  = KM_OBJC(UIView *, _gCurrentView);
+    UILabel *gStatusLabel = KM_OBJC(UILabel *, _gStatusLabel);
+    NSMutableArray *gHist = KM_OBJC(NSMutableArray *, _gHistory);
+    CGFloat *gBestDiff    = KM_PTR(CGFloat *, _gBestDifference);
 
-    // --- 1. KM 混合 ---
     UIColor *mixedColor = km_mixColor(self, @selector(mixColor));
 
-    // --- 2. 获取目标色 ---
     UIColor *targetColor = nil;
-    if (gTargetView) {
-        targetColor = gTargetView.backgroundColor;
-    }
-    if (!targetColor || targetColor == [UIColor clearColor]) {
+    if (gTargetView) targetColor = gTargetView.backgroundColor;
+    if (!targetColor || targetColor == [UIColor clearColor])
         targetColor = [UIColor whiteColor];
-    }
 
-    // --- 3. 更新当前色显示 ---
-    if (gCurrentView) {
-        gCurrentView.backgroundColor = mixedColor;
-    }
+    if (gCurrentView) gCurrentView.backgroundColor = mixedColor;
 
-    // --- 4. CIEDE2000 色差 ---
-    CGFloat tL, ta, tb;
+    CGFloat tL, ta, tb, mL, ma, mb;
     [KMEngine colorToLab:targetColor L:&tL a:&ta b:&tb];
-
-    CGFloat mL, ma, mb;
     [KMEngine colorToLab:mixedColor L:&mL a:&ma b:&mb];
-
     CGFloat diff = [KMEngine deltaE2000_L1:tL a1:ta b1:tb L2:mL a2:ma b2:mb];
 
-    // --- 5. 更新状态标签 ---
     if (gStatusLabel) {
         NSString *grade;
-        if (diff < 1.0)       grade = @"🏆 完美!";
-        else if (diff < 3.0)  grade = @"✅ 优秀";
-        else if (diff < 6.0)  grade = @"👍 良好";
-        else if (diff < 12.0) grade = @"⚠️ 一般";
-        else                  grade = @"❌ 再试试";
+        if (diff < 1.0)       grade = @"Perfect!";
+        else if (diff < 3.0)  grade = @"Excellent";
+        else if (diff < 6.0)  grade = @"Good";
+        else if (diff < 12.0) grade = @"Fair";
+        else                  grade = @"Try again";
 
         gStatusLabel.text = [NSString stringWithFormat:
-            @"ΔE00=%.2f %@\nL*=%.0f a*=%.1f b*=%.1f",
+            @"dE00=%.2f %@\nL*=%.0f a*=%.1f b*=%.1f",
             diff, grade, mL, ma, mb];
     }
 
-    // --- 6. 更新最佳记录 ---
-    if (gBestDifference) {
-        if (diff < *gBestDifference || *gBestDifference == 0) {
-            *gBestDifference = diff;
-        }
+    if (gBestDiff) {
+        if (diff < *gBestDiff || *gBestDiff == 0)
+            *gBestDiff = diff;
     }
 
-    // --- 7. 保存历史 ---
-    if (gHistory && mixedColor && targetColor) {
-        NSDictionary *entry = @{
+    if (gHist && mixedColor && targetColor) {
+        [gHist addObject:@{
             @"target": targetColor,
             @"mixed": mixedColor,
             @"deltaE": @(diff),
             @"timestamp": [NSDate date],
-        };
-        [gHistory addObject:entry];
+        }];
     }
 }
 
 
 // ============================================================
-// KMHooks 类 — 负责安装方法交换
+// KMHooks
 // ============================================================
 @interface KMHooks : NSObject
 + (void)install;
@@ -169,48 +142,43 @@ static void km_checkTapped(id self, SEL _cmd, id sender) {
 
     Class mixVC = NSClassFromString(@"MixViewController");
     if (!mixVC) {
-        NSLog(@"[KMEngine] MixViewController not found — perhaps app structure changed?");
-        NSLog(@"[KMEngine] KM engine loaded but hooks not installed.");
+        NSLog(@"[KMEngine] MixViewController not found, hooks skipped");
         return;
     }
 
-    NSLog(@"[KMEngine] Installing KM hooks on %@", mixVC);
+    NSLog(@"[KMEngine] Installing hooks on %@", mixVC);
 
-    // --- 交换 mixColor ---
     SEL mixSel = NSSelectorFromString(@"mixColor");
     Method mixMethod = class_getInstanceMethod(mixVC, mixSel);
     if (mixMethod) {
         original_mixColor = (id(*)(id, SEL))method_getImplementation(mixMethod);
         method_setImplementation(mixMethod, (IMP)km_mixColor);
-        NSLog(@"[KMEngine] ✓ mixColor -> KM engine");
+        NSLog(@"[KMEngine] mixColor -> KM");
     } else {
         class_addMethod(mixVC, mixSel, (IMP)km_mixColor, "@@:");
-        NSLog(@"[KMEngine] ✓ mixColor added (was missing)");
+        NSLog(@"[KMEngine] mixColor added");
     }
 
-    // --- 交换 checkTapped: ---
     SEL checkSel = NSSelectorFromString(@"checkTapped:");
     Method checkMethod = class_getInstanceMethod(mixVC, checkSel);
     if (checkMethod) {
         original_checkTapped = (void(*)(id, SEL, id))method_getImplementation(checkMethod);
         method_setImplementation(checkMethod, (IMP)km_checkTapped);
-        NSLog(@"[KMEngine] ✓ checkTapped: -> KM + CIEDE2000");
+        NSLog(@"[KMEngine] checkTapped: -> KM+CIEDE2000");
     }
 
     _hooksInstalled = YES;
-    NSLog(@"[KMEngine] All hooks installed. 预设色浆: %@",
-          [KMPigmentDatabase allPigmentNames]);
+    NSLog(@"[KMEngine] Hooks ready. pigments: %@", [KMPigmentDatabase allPigmentNames]);
 }
 
 @end
 
 
 // ============================================================
-// 自动安装入口: dylib 加载时延迟安装 hooks
+// 自动安装
 // ============================================================
 __attribute__((constructor))
 static void KMHooksInit(void) {
-    // 延迟确保 App 已完全启动
     dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC)),
                    dispatch_get_main_queue(), ^{
         [KMHooks install];
